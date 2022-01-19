@@ -204,18 +204,19 @@ class TwitterController extends Controller
          $tweets = array();
          foreach ($tw_tweet as $array){
              $tweets[] = array(
+                'tweet_url' => "https://twitter.com/".$array['user_screen_name']."/status/".$array['id_str'],
                 'id' => $array['id'],
                 'id_str' => $array['id_str'],
-                'text' => $array['text'],
+                'text' => mb_ereg_replace('"', '""', $array['text']),
                 'truncated' => $array['truncated'],
-                'source' => $array['source'], 
+                'source' => strip_tags($array['source']), 
                 'in_reply_to_status_id' => $array['in_reply_to_status_id'],
                 'in_reply_to_status_id_str' => $array['in_reply_to_status_id_str'],
                 'in_reply_to_user_id' => $array['in_reply_to_user_id'],
                 'in_reply_to_user_id_str' => $array['in_reply_to_user_id_str'],
                 'in_reply_to_screen_name' => $array['in_reply_to_screen_name'],
                 'user_id_str' => $array['user_id_str'],
-                'user_screen_name' => $array['user->screen_name'],
+                'user_screen_name' => $array['user_screen_name'],
                 'geo' => $array['geo'],
                 'coordinates' => $array['coordinates'],
                 'place' => $array['place'],
@@ -231,6 +232,7 @@ class TwitterController extends Controller
           }
          // カラムの作成
          $head = [
+            'tweet_url',
             'id',
             'id_str',
             'text',
@@ -321,6 +323,22 @@ class TwitterController extends Controller
         GROUP BY tw_users.id_str,created_day,screen_name
         ORDER BY created_day DESC LIMIT 336) sub ORDER BY created_day ASC";
                           
+       if( config('database.default') == "sqlite" ){
+          $sql = "SELECT * FROM (
+         SELECT tw_users.id_str, tw_users.screen_name, STRFTIME('%Y-%m-%d %H',DATETIME(created_at, 'localtime')) AS created_day , SUM(tw_users.followers_count) AS followers_count , SUM(tw_users.friends_count) AS friends_count , SUM(tw_users.listed_count) AS listed_count, SUM(tw_users.favourites_count) AS favourites_count 
+         FROM `tw_users` 
+        WHERE tw_users.screen_name LIKE '%".$search_word."%' 
+        GROUP BY tw_users.id_str,created_day,screen_name
+        ORDER BY created_day DESC LIMIT 336) sub ORDER BY created_day ASC";
+      }else{
+          $sql = "SELECT * FROM (
+         SELECT tw_users.id_str, tw_users.screen_name, DATE_FORMAT(created_at, '%Y-%m-%d %H') AS created_day , SUM(tw_users.followers_count) AS followers_count , SUM(tw_users.friends_count) AS friends_count , SUM(tw_users.listed_count) AS listed_count, SUM(tw_users.favourites_count) AS favourites_count 
+         FROM `tw_users` 
+        WHERE tw_users.screen_name LIKE '%".$search_word."%' 
+        GROUP BY tw_users.id_str,created_day,screen_name
+        ORDER BY created_day DESC LIMIT 336) sub ORDER BY created_day ASC";
+      }
+       
        $arrays = DB::select($sql);
                 
         return view('show_users_graph', ['arrays' => $arrays, 'search_word' => $search_word]);
